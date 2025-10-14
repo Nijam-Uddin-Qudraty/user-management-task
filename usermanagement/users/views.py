@@ -25,6 +25,25 @@ from rest_framework.response import Response
 from django.contrib.auth.models import User
 from .serializer import UserProfileSerializer
 
+class UserPasswordChangeView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        user = request.user
+        current_password = request.data.get("current_password")
+        new_password = request.data.get("new_password")
+        confirm_password = request.data.get("confirm_password")
+
+        if not user.check_password(current_password):
+            return Response({"error": "Current password is incorrect."}, status=status.HTTP_400_BAD_REQUEST)
+
+        if new_password != confirm_password:
+            return Response({"error": "New passwords do not match."}, status=status.HTTP_400_BAD_REQUEST)
+
+        user.set_password(new_password)
+        user.save()
+        return Response({"success": "Password changed successfully."}, status=status.HTTP_200_OK)
+
 class UserProfileView(viewsets.ModelViewSet):
     serializer_class = UserProfileSerializer
     permission_classes = [IsAuthenticated]
@@ -32,7 +51,7 @@ class UserProfileView(viewsets.ModelViewSet):
         return User.objects.filter(id=self.request.user.id)
 
 
-class UserLogOutView(APIView):
+class UserLogoutView(APIView):
     permission_classes = [IsAuthenticated]
     def get(self, request):
         request.user.auth_token.delete()
