@@ -1,5 +1,7 @@
 from django.shortcuts import redirect, render
 from rest_framework.views import APIView
+from rest_framework import generics
+from usermanagement import settings
 from .serializer import UserRegSerializer, UserLoginSerializer
 from django.contrib.auth.models import User
 from django.contrib.auth import authenticate,login,logout
@@ -25,6 +27,40 @@ from rest_framework.response import Response
 from django.contrib.auth.models import User
 from .serializer import UserProfileSerializer
 
+
+
+from rest_framework import generics, status
+from rest_framework.permissions import IsAuthenticated
+from rest_framework.response import Response
+from django.contrib.auth.models import User
+
+class DeleteUserView(generics.DestroyAPIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, *args, **kwargs):
+        user = request.user
+        password = request.data.get("password")
+
+        if not password:
+            return Response(
+                {"password": "Password is required to delete the account."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        if not user.check_password(password):
+            return Response(
+                {"password": "Incorrect password."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        user.delete()
+        return Response(
+            {"detail": "Account deleted successfully."},
+            status=status.HTTP_200_OK
+        )
+
+
+
 class UserPasswordChangeView(APIView):
     permission_classes = [IsAuthenticated]
 
@@ -44,12 +80,12 @@ class UserPasswordChangeView(APIView):
         user.save()
         return Response({"success": "Password changed successfully."}, status=status.HTTP_200_OK)
 
-class UserProfileView(viewsets.ModelViewSet):
+class UserProfileView(generics.RetrieveUpdateDestroyAPIView):
     serializer_class = UserProfileSerializer
     permission_classes = [IsAuthenticated]
-    def get_queryset(self):
-        return User.objects.filter(id=self.request.user.id)
 
+    def get_object(self):
+        return self.request.user
 
 class UserLogoutView(APIView):
     permission_classes = [IsAuthenticated]
@@ -84,17 +120,14 @@ def active(request, uidb64, token):
     try:
         uid = urlsafe_base64_decode(uidb64).decode()
         user = User.objects.get(pk=uid)
-    except (User.DoesNotExist):
+    except (User.DoesNotExist, ValueError, TypeError):
         user = None
 
     if user is not None and default_token_generator.check_token(user, token):
         user.is_active = True
         user.save()
-        return redirect("login")
-    else:
-        return Response("Activation link is invalid!", status=status.HTTP_400_BAD_REQUEST)
-
-
+        # redirect to frontend login page
+        return redirect(f"{settings.FRONTEND_URL}/login")
 
 
 
@@ -108,7 +141,7 @@ class UserRegView(APIView):
             user = serializer.save()  
             uid = urlsafe_base64_encode(force_bytes(user.pk))
             token = default_token_generator.make_token(user)
-            confirm_link = f"http://localhost:8000/api/confirm/{uid}/{token}/"
+            confirm_link = f"http://127.0.0.1:8000/api/confirm/{uid}/{token}/"
 
             email_subject = "Confirm your email"
             email_body = render_to_string("confirm_mail.html", {

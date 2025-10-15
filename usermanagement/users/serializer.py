@@ -3,10 +3,26 @@ from django.contrib.auth.models import User
 
 
 
+from django.contrib.auth.models import User
+from rest_framework import serializers
+
 class UserProfileSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
-        fields = ['username', 'email', 'first_name', 'last_name']
+        # Include all fields
+        fields = "__all__"
+        # Make sensitive fields read-only for normal users
+        read_only_fields = [
+            "id",
+            "is_staff",
+            "is_superuser",
+            "last_login",
+            "date_joined",
+            "groups",
+            "user_permissions",
+            "password"  # password should never be updated here
+        ]
+
 
 class UserLoginSerializer(serializers.Serializer):
     username = serializers.CharField()
@@ -21,6 +37,8 @@ class UserRegSerializer(serializers.ModelSerializer):
         fields = ['username', 'email', 'first_name', 'last_name', 'password', 'confirm_password']
         extra_kwargs={
             'password':{'write_only':True},
+            'first_name':{'required':False},
+            'last_name':{'required':False},
         }
 
     def create(self,validated_data):
